@@ -1,0 +1,9 @@
+.idea/
+__pycahce__/
+.ipynb_checkpoints/
+fake/
+source/
+model/
+*.pyc
+test.py
+
