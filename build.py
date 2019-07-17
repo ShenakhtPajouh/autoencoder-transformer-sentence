@@ -52,8 +52,8 @@ def build(config, source_weights, target_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("config", required=True, help="config file for encoder and decocder")
-    parser.add_argument("source_weights", required=True, help=".h5 file of source weights")
-    parser.add_argument("target_path", required=True, help="directory for saving encoder and decoder path")
+    parser.add_argument("--config", required=True, help="config file for encoder and decocder")
+    parser.add_argument("--source_weights", required=True, help=".h5 file of source weights")
+    parser.add_argument("--target_path", required=True, help="directory for saving encoder and decoder path")
     args = parser.parse_args()
     build(args.config, args.source_weights, args.target_path)
