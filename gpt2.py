@@ -2,7 +2,6 @@ import tensorflow as tf
 import numpy as np
 
 
-
 def get_tensor_shape(x):
     x = tf.convert_to_tensor(x)
     static_shape = x.shape.as_list()
@@ -500,7 +499,6 @@ class Embedding(tf.keras.layers.Layer):
         return super().__call__(inputs=inputs, start=start)
 
 
-
 class GPT2(tf.keras.Model):
 
     def __init__(self, config, name=None, trainable=True, dtype=None):
@@ -514,7 +512,6 @@ class GPT2(tf.keras.Model):
             dtype=dtype
         )
         self.transformer = Transformer(config, name="transformer")
-        self.decoder = tf.keras.layers.Dense(config["n_vocab"], name="decoder", use_bias=False)
 
     def call(self, inputs, cache=None,
              dropout=None, attention_dropout=None,
@@ -554,7 +551,13 @@ class GPT2(tf.keras.Model):
         if return_cache:
             x, cache = x
         if return_logits:
-            result = self.decoder(x)
+            shape = get_tensor_shape(x)
+            if not use_2d:
+                x = tf.reshape(x, [shape[0] * shape[1], shape[2]])
+            logits = tf.matmul(x, self.embedding.word_embedding, transpose_b=True)
+            if not use_2d:
+                logits = tf.reshape(logits, [shape[0], shape[1], self.embedding.vocab_size])
+            result = logits
         else:
             result = x
         if return_cache:

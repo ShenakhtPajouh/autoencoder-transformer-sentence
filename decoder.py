@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from numbers import Number
+import gpt2
 
 def get_tensor_shape(x):
     x = tf.convert_to_tensor(x)
@@ -512,79 +513,12 @@ class Transformer(tf.keras.Model):
         )
 
 
-class Embedding(tf.keras.layers.Layer):
-
-    def __init__(self, embedding_size, vocab_size, max_position_length,
-                 trainable=True, name=None, initializer_range=0.02,
-                 dtype=None):
-        if dtype is None:
-            dtype = tf.float32
-        super().__init__(name=name, trainable=trainable, dtype=dtype)
-        self.word_embedding = None
-        self.position_embedding = None
-        self.initializer_range = initializer_range
-        self.embedding_size = embedding_size
-        self.vocab_size = vocab_size
-        self.max_position_length = max_position_length
-        self.start_embedding = None
-
-    def build(self, input_shape):
-        self.word_embedding = self.add_weight(
-            name="word_embedding",
-            shape=(self.vocab_size, self.embedding_size),
-            initializer=tf.random_normal_initializer(stddev=self.initializer_range)
-        )
-        self.position_embedding = self.add_weight(
-            name="position_embedding",
-            shape=(self.max_position_length, self.embedding_size),
-            initializer=tf.random_normal_initializer(stddev=self.initializer_range)
-        )
-        self.start_embedding = self.add_weight(
-            name="start_embedding",
-            shape=(self.embedding_size, ),
-            initializer=tf.random_normal_initializer(stddev=self.initializer_range)
-        )
-
-    def call(self, inputs, start=None):
-        """
-
-        inputs: integer tensor of [batch_size, seq_length]
-        start: start of positional embedding if it is -1 or None, then we use start_embedding for first token
-
-        """
-        shape = get_tensor_shape(inputs)
-        x = tf.gather(self.word_embedding, inputs)
-        if start is None:
-            start = -1
-        if start == -1:
-            _start = 0
-        else:
-            _start = start
-        _end = _start + shape[1]
-        pe = self.position_embedding[_start:_end]
-        x = x + pe
-
-        if start == -1:
-            start_embedding = tf.reshape(self.start_embedding, [1, 1, -1])
-            start_embedding = tf.tile(start_embedding, [shape[0], 1, 1])
-            x = tf.concat([start_embedding, x], 1)
-
-        return x
-
-    def __call__(self, inputs, start=None):
-        """
-        inputs: integer tensor of [batch_size, seq_length]
-        start: start of positional embedding if it is -1 or None, then we use start_embedding for first token
-        """
-        return super().__call__(inputs=inputs, start=start)
-
-
 class Decoder(tf.keras.Model):
 
     def __init__(self, config, name=None, trainable=True, dtype=None):
         super().__init__(name=name)
         self.trainable = trainable
-        self.embedding = Embedding(
+        self.embedding = gpt2.Embedding(
             embedding_size=config['n_embd'],
             vocab_size=config['n_vocab'],
             max_position_length=config['n_ctx'],
@@ -592,7 +526,6 @@ class Decoder(tf.keras.Model):
             dtype=dtype
         )
         self.transformer = Transformer(config, name="transformer")
-        self.decoder = tf.keras.layers.Dense(config["n_vocab"], name="decoder", use_bias=False)
 
     def call(self, inputs, encoded=None, cache=None,
              dropout=None, attention_dropout=None,
@@ -657,7 +590,6 @@ class Decoder(tf.keras.Model):
         inputs: an integer tensor of shape [batch_size, seq_length]
         encoded: a tensor of shape [batch_size, encoded_length, dim] if use_2d is False, else [batch_size * encoded_length, dim]
         cache: a list of dictionaries {"key": key, "value": value} of previous keys and values. it uses for generation
-        use_one_hot_keys: if True it uses one hot tensors for embedding layer.
         return_cache: if True returns new keys and values alongside output. it uses for generation.
         return_logits: if True, return logits, else return last layer embedding.
         use_2d: for tpu performances: use 2D tensors for operations and return the output in 2D shape: [batch_size * seq_length, -1]

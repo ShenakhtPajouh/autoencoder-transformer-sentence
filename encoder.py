@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-import modified_gpt2 as gpt2
+import gpt2 as gpt2
 
 class AttentionAggregation(tf.keras.layers.Layer):
 
@@ -100,55 +100,45 @@ class Encoder(tf.keras.Model):
     def __init__(self, config, name=None, trainable=True):
         super().__init__(name=name)
         self.trainable = trainable
-        self.mode = config["mode"]
-        self.embedding = gpt2.Embedding(
-            embedding_size=config['n_embd'],
-            vocab_size=config['n_vocab'],
-            max_position_length=config['n_ctx'],
-            name="embedding"
+        self.gpt2 = gpt2.GPT2(config, name="gpt2")
+        self.aggregation = AttentionAggregation(
+            num_attention_heads=config["n_head"],
+            size_per_head=config["n_embd"] // config["n_head"],
+            query_num=config["q_num"],
+            name="aggregation"
         )
-        self.transformer = gpt2.Transformer(config, name="transformer")
-        if self.mode == "attention":
-            self.aggregation = AttentionAggregation(
-                num_attention_heads=config["n_head"],
-                size_per_head=config["n_embd"] // config["n_head"],
-                query_num=config["q_num"]
-            )
 
 
-    def call(self, inputs, length, dropout=None,
-             attention_dropout=None, use_2d=False):
+    def call(self, inputs, length=None, dropout=None, attention_dropout=None, use_2d=False):
         shape = gpt2.get_tensor_shape(inputs)
-        x = self.embedding(inputs)
-        if use_2d:
-            x = tf.reshape(x, [shape[0] * shape[1], self.embedding.embedding_size])
-        x = self.transformer(
-            inputs=x,
+        output = self.gpt2(
+            inputs=inputs,
             dropout=dropout,
+            attention_dropout=attention_dropout,
+            return_logits=False,
+            use_2d=use_2d
+        )
+        if length is None:
+            mask = None
+        else:
+            mask = tf.sequence_mask(length, shape[1])
+        result = self.aggregation(
+            inputs=output,
+            mask=mask,
             attention_dropout=attention_dropout,
             use_2d=use_2d,
             shape=shape
         )
-        result = None
-        if self.mode == "last_token":
-            if use_2d:
-                x = tf.reshape(x, [shape[0], shape[1], self.embedding.embedding_size])
-            result = tf.batch_gather(x, tf.expand_dims(length, 1))
-            if use_2d:
-                result = tf.squeeze(result, 1)
-        elif self.mode == "attention":
-            mask = tf.sequence_mask(length, shape[1])
-            result = self.aggregation(
-                inputs=x,
-                mask=mask,
-                attention_dropout=attention_dropout,
-                use_2d=use_2d,
-                shape=shape
-            )
         return result
 
-    def __call__(self, inputs, length, dropout=None,
+
+    def __call__(self, inputs, length=None, dropout=None,
                  attention_dropout=None, use_2d=False):
+        """
+        inputs: an integer tensor of shape [batch_size, seq_length]
+        length: a tensor of shape [batch_size]. it is necessary if encode=True
+        use_2d: for tpu performances: use 2D tensors for operations and return the output in 2D shape: [batch_size * seq_length, -1]
+        """
         return super().__call__(
             inputs=inputs,
             length=length,
