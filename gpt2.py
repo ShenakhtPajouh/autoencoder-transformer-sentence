@@ -515,7 +515,8 @@ class GPT2(tf.keras.Model):
 
     def call(self, inputs, cache=None,
              dropout=None, attention_dropout=None,
-             return_cache=False, return_logits=True, use_2d=False):
+             return_cache=False, return_logits=True, use_2d=False,
+             start=None):
         """
 
         inputs: an integer tensor of shape [batch_size, seq_length] if not use_2d is False
@@ -525,13 +526,9 @@ class GPT2(tf.keras.Model):
         return_cache: if True returns new keys and values alongside output. it uses for generation.
         return_logits: if True, return logits, else return last layer embedding.
         use_2d: for tpu performances: use 2D tensors for operations and return the output in 2D shape: [batch_size * seq_length, -1]
+        start: start positional embedding. if it is None, it is 0
 
         """
-        if cache is not None:
-            _cache = cache[0]["key"]
-            start = get_tensor_shape(_cache)[2]
-        else:
-            start = None
         x = self.embedding(inputs, start)
         if use_2d:
             shape = get_tensor_shape(x)
@@ -568,7 +565,7 @@ class GPT2(tf.keras.Model):
     def __call__(self, inputs, cache=None,
                  dropout=None, attention_dropout=None,
                  return_cache=False, return_logits=True,
-                 use_2d=False):
+                 use_2d=False, start=None):
         """
 
         inputs: an integer tensor of shape [batch_size, seq_length]
@@ -577,7 +574,7 @@ class GPT2(tf.keras.Model):
         return_cache: if True returns new keys and values alongside output. it uses for generation.
         return_logits: if True, return logits, else return last layer embedding.
         use_2d: for tpu performances: use 2D tensors for operations and return the output in 2D shape: [batch_size * seq_length, -1]
-
+        start: start positional embedding. if it is None, it is 0
         """
         return super().__call__(
             inputs=inputs,
@@ -586,6 +583,7 @@ class GPT2(tf.keras.Model):
             attention_dropout=attention_dropout,
             return_cache=return_cache,
             return_logits=return_logits,
-            use_2d=use_2d
+            use_2d=use_2d,
+            start=start
         )
 
